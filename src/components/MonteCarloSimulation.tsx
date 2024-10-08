@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { PieChart, AlertTriangle } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
-import mockOptimizationApi from '../utils/mockOptimizationApi';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -36,8 +36,8 @@ const MonteCarloSimulation: React.FC<MonteCarloSimulationProps> = ({ portfolio }
     setError(null);
     
     try {
-      const result = await mockOptimizationApi.getOptimizationResults(portfolio.id);
-      setOptimizationResult(result);
+      const response = await axios.get(`http://127.0.0.1:8000/${portfolio.id}`);
+      setOptimizationResult(response.data);
     } catch (error) {
       console.error('Error fetching optimization results:', error);
       setError('Failed to fetch optimization results. Please try again later.');
