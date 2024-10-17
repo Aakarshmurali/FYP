@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { PieChart, AlertTriangle } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
+import { getMVOResults } from '../utils/mvoApi';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -12,35 +12,37 @@ interface Portfolio {
   stocks: { ticker: string; price: number }[];
 }
 
-interface MonteCarloSimulationProps {
+interface MeanVarianceOptimizationProps {
   portfolio: Portfolio;
 }
 
-interface OptimizationResult {
+interface MVOResult {
   tickers: string[];
   weights: number[];
   sharpe: number;
+  annualVolatility: number;
+  expectedAnnualReturn: number;
 }
 
-const MonteCarloSimulation: React.FC<MonteCarloSimulationProps> = ({ portfolio }) => {
-  const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
+const MeanVarianceOptimization: React.FC<MeanVarianceOptimizationProps> = ({ portfolio }) => {
+  const [optimizationResult, setOptimizationResult] = useState<MVOResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchOptimizationResults();
+    fetchMVOResults();
   }, [portfolio]);
 
-  const fetchOptimizationResults = async () => {
+  const fetchMVOResults = async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const response = await axios.get(`http://127.0.0.1:8000/${portfolio.id}`);
-      setOptimizationResult(response.data);
+      const result = await getMVOResults(portfolio.id);
+      setOptimizationResult(result);
     } catch (error) {
-      console.error('Error fetching optimization results:', error);
-      setError('Failed to fetch optimization results. Please try again later.');
+      console.error('Error fetching MVO results:', error);
+      setError('Failed to fetch MVO results. Please try again later.');
     } finally {
       setIsLoading(false);
     }
@@ -128,12 +130,14 @@ const MonteCarloSimulation: React.FC<MonteCarloSimulationProps> = ({ portfolio }
 
   return (
     <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold mb-6 text-white">Portfolio Optimization Results</h2>
+      <h2 className="text-2xl font-bold mb-6 text-white">Mean-Variance Optimization Results</h2>
       {optimizationResult && (
         <>
           <div className="mb-6">
             <h3 className="text-xl font-semibold mb-2 text-white">Optimization Summary</h3>
             <p className="text-gray-300">Sharpe Ratio: {optimizationResult.sharpe.toFixed(4)}</p>
+            <p className="text-gray-300">Annual Volatility: {optimizationResult.annualVolatility.toFixed(2)}%</p>
+            <p className="text-gray-300">Expected Annual Return: {optimizationResult.expectedAnnualReturn.toFixed(2)}%</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
@@ -149,4 +153,4 @@ const MonteCarloSimulation: React.FC<MonteCarloSimulationProps> = ({ portfolio }
   );
 };
 
-export default MonteCarloSimulation;
+export default MeanVarianceOptimization;

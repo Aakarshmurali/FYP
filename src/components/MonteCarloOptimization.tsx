@@ -1,78 +1,149 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import { db } from '../firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { Briefcase } from 'lucide-react';
-import MonteCarloSimulation from './MonteCarloSimulation';
+import { PieChart, AlertTriangle } from 'lucide-react';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Pie } from 'react-chartjs-2';
+import { getMonteCarloResults } from '../utils/monteCarloApi';
 
-const MonteCarloOptimization = () => {
-  const [portfolios, setPortfolios] = useState<any[]>([]);
-  const [selectedPortfolio, setSelectedPortfolio] = useState<any | null>(null);
+ChartJS.register(ArcElement, Tooltip, Legend);
+
+interface Portfolio {
+  id: string;
+  name: string;
+  stocks: { ticker: string; price: number }[];
+}
+
+interface MonteCarloOptimizationProps {
+  portfolio: Portfolio;
+}
+
+interface MonteCarloResult {
+  tickers: string[];
+  weights: number[];
+  sharpe: number;
+}
+
+const MonteCarloOptimization: React.FC<MonteCarloOptimizationProps> = ({ portfolio }) => {
+  const [optimizationResult, setOptimizationResult] = useState<MonteCarloResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
 
   useEffect(() => {
-    if (user) {
-      fetchPortfolios();
-    }
-  }, [user]);
+    fetchMonteCarloResults();
+  }, [portfolio]);
 
-  const fetchPortfolios = async () => {
+  const fetchMonteCarloResults = async () => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      if (user) {
-        const q = query(collection(db, 'portfolios'), where('userId', '==', user.uid));
-        const querySnapshot = await getDocs(q);
-        const fetchedPortfolios = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setPortfolios(fetchedPortfolios);
-      }
+      const result = await getMonteCarloResults(portfolio.id);
+      setOptimizationResult(result);
     } catch (error) {
-      console.error('Error fetching portfolios:', error);
-      setError('Failed to fetch portfolios. Please try again later.');
+      console.error('Error fetching Monte Carlo results:', error);
+      setError('Failed to fetch Monte Carlo results. Please try again later.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-6 text-white">Monte Carlo Optimization</h2>
-      
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      
-      {!selectedPortfolio ? (
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
-          <h3 className="text-xl font-semibold mb-4 text-white">Select Portfolio to Optimize</h3>
-          {portfolios.length === 0 ? (
-            <p className="text-gray-400">No portfolios available. Create a portfolio first.</p>
-          ) : (
-            <div className="space-y-4">
-              {portfolios.map((portfolio) => (
-                <button
-                  key={portfolio.id}
-                  onClick={() => setSelectedPortfolio(portfolio)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
-                >
-                  <span className="flex items-center">
-                    <Briefcase className="mr-3" size={24} />
-                    {portfolio.name}
-                  </span>
-                  <span className="text-sm">
-                    {portfolio.stocks?.length || 0} stocks
-                  </span>
-                </button>
+  const renderPieChart = () => {
+    if (!optimizationResult) return null;
+
+    const data = {
+      labels: optimizationResult.tickers,
+      datasets: [{
+        data: optimizationResult.weights.map(w => w * 100), // Convert to percentages
+        backgroundColor: [
+          '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+          '#FF9F40', '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'
+        ],
+      }],
+    };
+
+    return (
+      <div className="mb-8">
+        <h3 className="text-xl font-semibold mb-4 text-white">Optimized Portfolio Allocation</h3>
+        <div className="h-64 md:h-80">
+          <Pie data={data} options={{ 
+            plugins: { 
+              legend: { 
+                labels: { color: 'white' },
+                position: 'right' as const,
+              } 
+            },
+            responsive: true,
+            maintainAspectRatio: false,
+          }} />
+        </div>
+      </div>
+    );
+  };
+
+  const renderAllocationTable = () => {
+    if (!optimizationResult) return null;
+
+    return (
+      <div className="mb-8">
+        <h3 className="text-xl font-semibold mb-4 text-white">Optimized Allocation</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-700">
+                <th className="p-3 text-white">Ticker</th>
+                <th className="p-3 text-white">Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {optimizationResult.tickers.map((ticker, index) => (
+                <tr key={ticker} className="border-b border-gray-600">
+                  <td className="p-3 text-white">{ticker}</td>
+                  <td className="p-3 text-white">{(optimizationResult.weights[index] * 100).toFixed(2)}%</td>
+                </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-500 bg-opacity-10 border border-red-500 text-red-500 px-4 py-3 rounded relative" role="alert">
+        <div className="flex items-center">
+          <AlertTriangle className="mr-2" size={24} />
+          <span>{error}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
+      <h2 className="text-2xl font-bold mb-6 text-white">Monte Carlo Simulation Results</h2>
+      {optimizationResult && (
+        <>
+          <div className="mb-6">
+            <h3 className="text-xl font-semibold mb-2 text-white">Optimization Summary</h3>
+            <p className="text-gray-300">Sharpe Ratio: {optimizationResult.sharpe.toFixed(4)}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              {renderPieChart()}
             </div>
-          )}
-        </div>
-      ) : (
-        <div>
-          <button
-            onClick={() => setSelectedPortfolio(null)}
-            className="mb-6 text-white flex items-center hover:text-blue-300"
-          >
-            <Briefcase className="mr-2" size={18} />
-            Back to Portfolio Selection
-          </button>
-          <MonteCarloSimulation portfolio={selectedPortfolio} />
-        </div>
+            <div>
+              {renderAllocationTable()}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

@@ -4,10 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import MonteCarloSimulation from './MonteCarloSimulation';
+import MonteCarloOptimization from './MonteCarloOptimization';
+import MeanVarianceOptimization from './MeanVarianceOptimization';
 import OptimizationTechniques from './OptimizationTechniques';
 
-const PortfolioOptimization = () => {
+const PortfolioOptimization: React.FC = () => {
   const [portfolios, setPortfolios] = useState<any[]>([]);
   const [selectedPortfolio, setSelectedPortfolio] = useState<any | null>(null);
   const [selectedTechnique, setSelectedTechnique] = useState<string | null>(null);
@@ -36,9 +37,9 @@ const PortfolioOptimization = () => {
   const renderOptimizationComponent = () => {
     switch (selectedTechnique) {
       case 'monte-carlo':
-        return <MonteCarloSimulation portfolio={selectedPortfolio} />;
+        return <MonteCarloOptimization portfolio={selectedPortfolio} />;
       case 'mean-variance':
-        return <div className="text-center text-white">Mean-Variance Optimization (Not implemented)</div>;
+        return <MeanVarianceOptimization portfolio={selectedPortfolio} />;
       case 'black-litterman':
         return <div className="text-center text-white">Black-Litterman Model (Not implemented)</div>;
       case 'risk-parity':
